@@ -1,61 +1,58 @@
+import numpy as np
+
+
 class Tree:
-    def __init__(self, text = "", compressed = ""):
+    def __init__(self, text = "", compressed = np.array([], dtype=np.byte)):
         self.root = Node('', 0, None)
         self.current = self.root
         self.index = 1
-        self.text = text
+        self.text = text + "$"
         self.compressed = compressed
         self.dictionary = {0: ""}
     
+    #adiciona nó na árvore
     def add_child(self, child_node):
         self.index += 1
         self.current.children.append(child_node)
 
+    # adiciona o nó na arvore se nao houver o sufixo ou atualiza o no atual da iteracao
     def get_sufix(self, character):
         current_children = self.current.children_keys()
         correspondent_child = current_children.index(character) if character in current_children else -1
         if correspondent_child == -1:
             new_node = Node(character, self.index, self.current)
             self.add_child(new_node)
-            self.compressed = self.compressed + new_node.get_node_notation()
+            self.compressed = np.append(self.compressed, new_node.convert_node_to_number())
             self.current = self.root
 
         else:
             self.current = self.current.children[correspondent_child]
 
+    #comprime caracter a caractere
     def compress(self):
         for character in self.text:
             self.get_sufix(character)
         return self
     
+    #retorna o valor da celula comprimida
     def get_compressed_cell_value(self, cell):
-        cell_id, parent_id, value = cell.split(chr(4))
-        cell_id = int(cell_id)
-        parent_id = int(parent_id)
+        cell_id, parent_id, value = cell
         if cell_id not in self.dictionary:
             self.dictionary[cell_id] = self.dictionary[parent_id] + value
         return self.dictionary[cell_id]
-
+        
+    #itera sobre a arvore descomprimindo
     def decompress(self):
-        cells = self.compressed.split(chr(2))
-        print(len(cells))
-        for cell in cells[1:]:
+        for i in range(len(self.compressed)):
+            cell = convert_number_to_node(self.compressed[i], i + 1)
             self.text = self.text + self.get_compressed_cell_value(cell)
+
 class Node:
     def __init__(self, value, index, parent):
         self.index = index
         self.value = value
         self.children = []
         self.parent = parent
-
-    def __repr__(self):
-        return 'Node({})'.format(self.value)
-    
-    def __str__(self, level=0):
-        ret = "\t"*level+" index: " + str(self.index) + " key: " + str(self.value) +"\n"
-        for child in self.children:
-            ret += child.__str__(level+1)
-        return ret
 
     def add_child(self, child_node):
         self.children.append(child_node)
@@ -64,6 +61,12 @@ class Node:
     def children_keys(self):
         return [child.value for child in self.children]
     
-    #doc: gera a notacao de compressao de um no, por exemplo, se o no for o no 1 com valor a, o seu pai eh o no 0, entao o no 1 tera a notacao #1,0,a
-    def get_node_notation(self):
-        return chr(2)+ str(self.index) + chr(4) + str(self.parent.index) + chr(4) + str(self.value)
+    def convert_node_to_number(self):
+        return int(('{0:024b}'.format(self.parent.index) + '{0:08b}'.format(ord(self.value)))[:32],2)
+
+def convert_number_to_node(number:int, index):
+    bits = '{0:032b}'.format(number)
+    father_index = int(bits[:24], 2)
+    value = chr(int(bits[24:32], 2))
+    return (index, father_index, value)
+
